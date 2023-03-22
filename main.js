@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+import { Rectangle } from "pixi.js";
 import "./style.css";
 
 // aliases
@@ -25,6 +26,13 @@ gameOverScene.visible = false;
 const dungeonSize = 16;
 const tileSize = 32;
 
+const boundary = new Rectangle(
+  tileSize,
+  tileSize,
+  (dungeonSize - 1) * tileSize,
+  (dungeonSize - 1) * tileSize
+);
+
 // display the game area
 
 const spritesheet = await makeSpritesheet("images/explorer.json");
@@ -33,7 +41,7 @@ drawDungeon();
 
 // display entities
 
-const [explorer] = makeEntities();
+const [explorer, blobs, treasure, door] = makeEntities();
 
 // draw UI
 
@@ -41,9 +49,10 @@ const [healthBar] = drawUI();
 gameScene.addChild(healthBar);
 
 const message = drawMessage("The End!", {
-  x: 120,
-  y: (dungeonSize * tileSize) / 2 - tileSize,
+  x: (dungeonSize * tileSize) / 2 - tileSize / 2,
+  y: (dungeonSize * tileSize) / 2 - tileSize / 2,
 });
+console.log(message);
 gameOverScene.addChild(message);
 
 // input setup
@@ -109,8 +118,63 @@ function gameLoop(delta) {
 }
 
 function play(delta) {
+  explorer.hit = false;
+
   explorer.x += explorer.vx * delta;
   explorer.y += explorer.vy * delta;
+  contain(explorer, boundary);
+
+  blobs.forEach((blob) => {
+    blob.y += blob.vy;
+
+    const blobHitsWall = contain(blob, boundary);
+
+    if (blobHitsWall === "top" || blobHitsWall === "bottom") {
+      blob.vy *= -1;
+    }
+
+    if (hitTestRectangle(explorer, blob)) {
+      explorer.hit = true;
+    }
+  });
+
+  if (explorer.hit) {
+    explorer.alpha = 0.5;
+    healthBar.outer.width -= 1;
+    if (healthBar.outer.width < 0) {
+      healthBar.outer.width = 0;
+    }
+  } else {
+    explorer.alpha = 1;
+  }
+
+  if (hitTestRectangle(explorer, treasure)) {
+    treasure.position.set(explorer.x + 8, explorer.y + 8);
+  }
+
+  const goalArea = new Rectangle(
+    tileSize,
+    tileSize,
+    tileSize / 2,
+    tileSize / 2
+  );
+  if (hitTestRectangle(treasure, goalArea)) {
+    console.log("Treasure reached goal area!");
+    state = end;
+    message.text = "You won! :D";
+  }
+
+  if (healthBar.outer.width <= 0) {
+    state = end;
+    message.text = "You lost! :(";
+  }
+}
+
+// game over screen
+
+function end() {
+  gameScene.visible = false;
+  gameOverScene.visible = true;
 }
 
 // util functions
@@ -217,7 +281,9 @@ function drawMessage(text, position) {
     fill: "white",
   });
   const message = new Text(text, style);
-  message.position.set(position);
+  message.position.set(position.x, position.y);
+
+  console.log(message);
   return message;
 }
 
@@ -259,7 +325,7 @@ function makeEntities() {
     direction *= -1;
   }
 
-  return [explorer, blobs];
+  return [explorer, blobs, treasure, door];
 }
 
 function putSprite(textureId, position) {
@@ -359,4 +425,30 @@ function hitTestRectangle(r1, r2) {
   }
 
   return hit;
+}
+
+function contain(sprite, rectangle) {
+  let collision = undefined;
+
+  if (sprite.x < rectangle.x) {
+    sprite.x = rectangle.x;
+    collision = "left";
+  }
+
+  if (sprite.y < rectangle.y) {
+    sprite.y = rectangle.y;
+    collision = "top";
+  }
+
+  if (sprite.x + tileSize > rectangle.width) {
+    sprite.x = rectangle.width - tileSize;
+    collision = "right";
+  }
+
+  if (sprite.y + tileSize > rectangle.height) {
+    sprite.y = rectangle.height - tileSize;
+    collision = "bottom";
+  }
+
+  return collision;
 }
