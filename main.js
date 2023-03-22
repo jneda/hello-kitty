@@ -5,24 +5,46 @@ import "./style.css";
 const Application = PIXI.Application,
   Assets = PIXI.Assets,
   BaseTexture = PIXI.BaseTexture,
-  Sprite = PIXI.Sprite;
+  Container = PIXI.Container,
+  Graphics = PIXI.Graphics,
+  Sprite = PIXI.Sprite,
+  Text = PIXI.Text,
+  TextStyle = PIXI.TextStyle;
 
 // create PIXI application
-// laod spritesheet
 
 const app = makeApp();
-const spritesheet = await makeSpritesheet("images/explorer.json");
 
-// display the game area
+const gameScene = new Container();
+app.stage.addChild(gameScene);
+
+const gameOverScene = new Container();
+app.stage.addChild(gameOverScene);
+gameOverScene.visible = false;
 
 const dungeonSize = 16;
 const tileSize = 32;
+
+// display the game area
+
+const spritesheet = await makeSpritesheet("images/explorer.json");
 
 drawDungeon();
 
 // display entities
 
 const [explorer] = makeEntities();
+
+// draw UI
+
+const [healthBar] = drawUI();
+gameScene.addChild(healthBar);
+
+const message = drawMessage("The End!", {
+  x: 120,
+  y: (dungeonSize * tileSize) / 2 - tileSize,
+});
+gameOverScene.addChild(message);
 
 // input setup
 
@@ -158,9 +180,45 @@ function drawDungeon() {
       sprite.anchor.set(0);
       sprite.scale.set(2);
       sprite.position.set(i * tileSize, j * tileSize);
-      app.stage.addChild(sprite);
+      gameScene.addChild(sprite);
     }
   }
+}
+
+function drawUI() {
+  const healthBar = new Container();
+  const offsetRight = 170;
+  const width = 128;
+  const height = 4;
+
+  healthBar.position.set(dungeonSize * tileSize - offsetRight, height);
+
+  const innerBar = new Graphics();
+  innerBar.beginFill(0x000000);
+  innerBar.drawRect(0, 0, width, height * 2);
+  innerBar.endFill();
+  healthBar.addChild(innerBar);
+
+  const outerBar = new Graphics();
+  outerBar.beginFill(0xff3300);
+  outerBar.drawRect(0, 0, width, height * 2);
+  outerBar.endFill();
+  healthBar.addChild(outerBar);
+
+  healthBar.outer = outerBar;
+
+  return [healthBar];
+}
+
+function drawMessage(text, position) {
+  const style = new TextStyle({
+    fontFamily: "Futura",
+    fontSize: 64,
+    fill: "white",
+  });
+  const message = new Text(text, style);
+  message.position.set(position);
+  return message;
 }
 
 function makeEntities() {
@@ -183,16 +241,25 @@ function makeEntities() {
 
   const numberOfBlobs = 6,
     spacing = 48,
-    xOffset = 150;
+    xOffset = 150,
+    speed = 2,
+    blobs = [];
+
+  let direction = 1;
 
   for (let i = 0; i < numberOfBlobs; i++) {
     const blob = putSprite("blob.png", {
       x: spacing * i + xOffset,
       y: randomInt(tileSize, dungeonSize * tileSize - 2 * tileSize),
     });
+    blobs.push(blob);
+
+    // set blob vertical velocity then invert direction for the next one
+    blob.vy = speed * direction;
+    direction *= -1;
   }
 
-  return [explorer];
+  return [explorer, blobs];
 }
 
 function putSprite(textureId, position) {
@@ -201,7 +268,7 @@ function putSprite(textureId, position) {
   sprite.scale.set(2);
   sprite.x = position.x;
   sprite.y = position.y;
-  app.stage.addChild(sprite);
+  gameScene.addChild(sprite);
   return sprite;
 }
 
@@ -256,4 +323,40 @@ function keyboard(value) {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+// collision detection
+
+function hitTestRectangle(r1, r2) {
+  let hit = false;
+
+  // find the center points of each sprite
+  r1.centerX = r1.x + r1.width / 2;
+  r1.centerY = r1.y + r1.height / 2;
+  r2.centerX = r2.x + r2.width / 2;
+  r2.centerY = r2.y + r2.height / 2;
+
+  // find the half-widths
+  r1.halfWidth = r1.width / 2;
+  r1.halfHeight = r1.height / 2;
+  r2.halfWidth = r2.width / 2;
+  r2.halfHeight = r2.height / 2;
+
+  // find distance vector
+  const vx = r1.centerX - r2.centerX;
+  const vy = r1.centerY - r2.centerY;
+
+  // find combined half-widths
+  const combinedHalfWidths = r1.halfWidth + r2.halfWidth;
+  const combinedHalfHeights = r1.halfHeight + r2.halfHeight;
+
+  // check for collision on the x axis
+  if (Math.abs(vx) < combinedHalfWidths) {
+    // check for collision on the y axis
+    if (Math.abs(vy) < combinedHalfHeights) {
+      hit = true;
+    }
+  }
+
+  return hit;
 }
