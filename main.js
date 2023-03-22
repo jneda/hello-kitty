@@ -75,9 +75,26 @@ for (let i = 0; i < dungeonSize; i++) {
   }
 }
 
-const explorer = Sprite.from(spritesheet.textures["explorer.png"]);
-explorer.anchor.set(0);
-explorer.scale.set(2);
-explorer.x = 68;
-explorer.y = (dungeonSize * tileSize) / 2 - explorer.height / 2;
-app.stage.addChild(explorer);
+let position = {
+  x: 68,
+  y: (dungeonSize * tileSize) / 2 - tileSize / 2,
+}
+
+const explorer = putSprite("explorer.png", position);
+
+const treasure = Sprite.from(spritesheet.textures["chest.png"]);
+treasure.anchor.set(0);
+treasure.scale.set(2);
+treasure.x = app.stage.width - treasure.width - 48;
+treasure.y = app.stage.height / 2 - treasure.height / 2;
+app.stage.addChild(treasure);
+
+function putSprite(textureId, position) {
+  const sprite = Sprite.from(spritesheet.textures[textureId]);
+  sprite.anchor.set(0);
+  sprite.scale.set(2);
+  sprite.x = position.x;
+  sprite.y = position.y;
+  app.stage.addChild(sprite);
+  return sprite;
+}
